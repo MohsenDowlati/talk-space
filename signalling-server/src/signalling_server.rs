@@ -14,9 +14,9 @@ use futures::{
     future, pin_mut, StreamExt, TryStreamExt,
 };
 use log::{debug, error, info, warn, SetLoggerError};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use simplelog::{CombinedLogger, LevelFilter, TermLogger, TerminalMode, WriteLogger};
+use rand::distr::Alphanumeric;
+use rand::{rng, RngExt};
+use simplelog::{CombinedLogger, ColorChoice, LevelFilter, TermLogger, TerminalMode, WriteLogger};
 
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
@@ -38,6 +38,7 @@ fn setup_logging() -> Result<(), SetLoggerError> {
             LevelFilter::Debug,
             simplelog::Config::default(),
             TerminalMode::Mixed,
+            ColorChoice::Auto,
         ),
         WriteLogger::new(
             LevelFilter::Debug,
@@ -66,7 +67,7 @@ pub fn get_local_ip() -> Option<String> {
 }
 
 fn generate_id(length: u8) -> String {
-    let rand_string: String = thread_rng()
+    let rand_string: String = rng()
         .sample_iter(&Alphanumeric)
         .take(length as usize)
         .map(char::from)
@@ -115,7 +116,16 @@ fn handle_message(
                     return Err(e_msg);
                 }
                 Some(session_members) => {
-                    let doc_id = session_members.host.clone();
+                    if session_members.host != user_id {
+                        return Err(format!(
+                            "User {:?} attempted to send an offer without hosting session {:?}",
+                            user_id.inner(), session_id.inner()
+                        ));
+                    }
+                    let guest = match session_members.guest.clone() {
+                        Some(guest) => guest,
+                        None => return Err("VideoOffer Error: No guest in Session".into()),
+                    };
                     let sig_msg = SignalEnum::VideoOffer(offer, session_id.clone());
                     let message = match serde_json::to_string(&sig_msg) {
                         Ok(msg) => msg,
@@ -127,7 +137,7 @@ fn handle_message(
                             return Err(e_msg);
                         }
                     };
-                    (message, Destination::OtherPeer(doc_id))
+                    (message, Destination::OtherPeer(guest))
                 }
             }
         }
@@ -145,14 +155,17 @@ fn handle_message(
                     return Err(e_msg);
                 }
                 Some(session_members) => {
-                    let opt_guest = session_members.guest.clone();
-                    let guest = match opt_guest {
-                        Some(guest) => guest,
+                    match session_members.guest.as_ref() {
+                        Some(guest) if guest == &user_id => (),
+                        Some(_) => return Err(format!(
+                            "User {:?} attempted to answer session {:?} without being its guest",
+                            user_id.inner(), session_id.inner()
+                        )),
                         None => {
-                            let emsg= String::from("IceCandidate Error: No guest in Session, where are you sending Ice Candidates mate? ");
-                            return Err(emsg);
+                            return Err("VideoAnswer Error: No guest in Session".into());
                         }
-                    };
+                    }
+                    let host = session_members.host.clone();
                     let sig_msg = SignalEnum::VideoAnswer(answer, session_id.clone());
                     let message = match serde_json::to_string(&sig_msg) {
                         Ok(msg) => msg,
@@ -164,7 +177,7 @@ fn handle_message(
                             return Err(e_msg);
                         }
                     };
-                    (message, Destination::OtherPeer(guest))
+                    (message, Destination::OtherPeer(host))
                 }
             }
         }
@@ -327,7 +340,7 @@ fn handle_message(
             };
 
             debug!("Sending {} to {}", message_to_client, addr);
-            let send_res = sender.unbounded_send(Message::Text(message_to_client));
+            let send_res = sender.unbounded_send(Message::Text(message_to_client.into()));
             if send_res.is_err() {
                 error!("{}", format!("Error Sending {:?}", send_res))
             }
@@ -355,7 +368,7 @@ fn handle_message(
                     };
 
                     debug!("Sending {} to {}", message_to_client, addr);
-                    let send_res = sender.unbounded_send(Message::Text(message_to_client));
+                    let send_res = sender.unbounded_send(Message::Text(message_to_client.into()));
                     if send_res.is_err() {
                         error!("{}", format!("Error Sending {:?}", send_res))
                     }
@@ -378,7 +391,7 @@ fn reply_with_id(tx: UnboundedSender<Message>, user_id: UserID) -> Result<(), St
         }
     };
 
-    let res = tx.unbounded_send(Message::Text(message));
+    let res = tx.unbounded_send(Message::Text(message.into()));
     if res.is_err() {
         error!("{:?}", res.unwrap_err());
     } else {

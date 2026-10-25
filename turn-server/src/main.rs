@@ -94,6 +94,7 @@ async fn main() -> Result<(), Error> {
         // auth_handler: Arc::new(long_term_auth_handler),
         auth_handler: Arc::new(MyAuthHandler::new(cred_map)),
         channel_bind_timeout: Duration::from_secs(600),
+        alloc_close_notify: None,
     })
         .await?;
 

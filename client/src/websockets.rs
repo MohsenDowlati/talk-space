@@ -8,7 +8,7 @@ use web_sys::{Document, ErrorEvent, HtmlLabelElement, MessageEvent, RtcPeerConne
 
 use crate::common::{handle_message_reply, AppState};
 
-const WS_IP_PORT: &str = "ws://192.168.178.60:2794";
+const WS_IP_PORT: &str = "ws://0.0.0.0:2794";
 
 
 pub async fn open_web_socket(
