@@ -1,0 +1,29 @@
+[package]
+name = "turn-server"
+version = "0.1.0"
+authors = ["Mohsen <dowmohsen@gmail.com>"]
+edition = "2024"
+
+
+[dependencies]
+stun = "0.17.2"
+tokio = { version = "1.15.0", features = ["full"] }
+async-trait = "0.1.52"
+log = "0.4.14"
+base64 = "0.23.1"
+rand = "0.10.3"
+ring = "0.17.14"
+md-5 = "0.11.0"
+thiserror = "2.0.21"
+turn = "0.17.2"
+
+util = { package = "webrtc-util", version = "0.17.2", default-features = false, features = ["conn", "vnet"] }
+env_logger = "0.11.11"
+
+
+[dev-dependencies]
+tokio-test = "0.4.2"
+env_logger = "0.11.11"
+chrono = "0.4.19"
+hex = "0.4.3"
+criterion = "0.8.2"
